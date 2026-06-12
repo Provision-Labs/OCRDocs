@@ -28,8 +28,8 @@ C++ реализация сервиса OCR и распознавания док
 
 ### `Установка`
 
-1. Скачайте [установочный файл]()
-2. Запустите `provision_scan_setup.exe`
+1. Скачайте [установочный файл](https://provlabs.tech/downloads/provision_ocr_trial_setup.exe)
+2. Запустите `provision_ocr_trial.exe`
 3. В открывшемся окне выберите язык, путь для установки программы
 4. Нажмите `Установить`
 
@@ -37,7 +37,7 @@ C++ реализация сервиса OCR и распознавания док
 
 1. В открывшемся консольном окне дождитесь статуса `Provision Scan: READY`
 2. В поле `Listening on` будет указан URL для API
-3. Из папки, в которой установлен OCR запустите файл `provision_launcher.exe`
+3. Из папки, в которой установлен OCR запустите файл `ProvisionOCR.exe`
 
 ### Linux
 
@@ -48,7 +48,7 @@ C++ реализация сервиса OCR и распознавания док
 1. Скачайте docker образ:
 
 ```bash
-docker pull ...
+docker pull registry.provlabs.tech/hub/trial/provision_ocr:latest
 ```
 
 2. Запустите контейнер:
@@ -56,30 +56,21 @@ docker pull ...
 **CMD / bash:**
 
 ```bash
-docker run -d --name docscan-cpp --gpus "device=0" -p 8101:8098 -v C:\provision_scan\config:/etc/provision_scan/config:ro -v C:\provision_scan\weights:/etc/provision_scan/weights:ro --restart always provision_scan_cpp:dev
+docker run -d --name provision_ocr --gpus all -p 8098:8098 --restart always registry.provlabs.tech/hub/trial/provision_ocr:latest
 ```
 
 **PowerShell:**
 
 ```powershell
 docker run -d `
-  --name docscan-cpp `
-  --gpus "device=0" `
-  -p 8101:8098 `
-  -v C:\provision_scan\config:/etc/provision_scan/config:ro `
-  -v C:\provision_scan\weights:/etc/provision_scan/weights:ro `
+  --name provision_ocr `
+  --gpus all `
+  -p 8098:8098 `
   --restart always `
-  provision_scan:dev
+  registry.provlabs.tech/hub/trial/provision_ocr:latest
 ```
+> `--gpus all` тег для запуска на GPU. Для запуска на CPU или MacOS нужно исключить данный тег
 
-Замените пути на свои:
-
-| Флаг    | Локальный путь (заменить)   | Путь в контейнере (не менять) |
-|---------|-----------------------------|-------------------------------|
-| config  | `C:\provision_scan\config`  | `/etc/provision_scan/config`  |
-| weights | `C:\provision_scan\weights` | `/etc/provision_scan/weights` |
-
-> `ro` — read-only, контейнер не сможет изменить ваши файлы.
 
 3. Проверьте, что контейнер запущен:
 
@@ -96,7 +87,7 @@ docker ps
 4. Остановка контейнера:
 
 ```bash
-docker stop docscan-cpp
+docker stop provision_ocr
 ```
 
 ---
@@ -185,11 +176,7 @@ POST /processing/{template}
 POST /processing2/{template}
 ```
 
-Alias для `/processing`, принимает только multipart/form-data с полем `file`.
-
-**Параметры пути:** аналогично `/processing/{template}`.
-
-**Тело запроса:** multipart/form-data с полем `file`.
+**Параметры:** аналогично `/processing/{template}`.
 
 ---
 
@@ -200,7 +187,6 @@ Alias для `/processing`, принимает только multipart/form-data 
 | `passport`   | Паспорт гражданина РФ |
 | `snils`      | СНИЛС                 |
 | `agreement`  | Договор               |
-| `regulation` | Регламент / устав     |
 | `default`    | Универсальный шаблон  |
 
 ---
@@ -304,6 +290,7 @@ Alias для `/processing`, принимает только multipart/form-data 
 ### Объект `Paragraph`
 
 Группирует несколько `Block`-ов в одно логическое поле. `text` — конкатенация всех блоков.
+Пустое в шаблоне `default`
 
 ```json
 {
