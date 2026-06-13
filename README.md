@@ -80,9 +80,9 @@ docker ps
 
 После успешного старта сервис доступен по адресам:
 
-- API:          `http://localhost:8101/`
-- Swagger UI:   `http://localhost:8101/docs`
-- Health check: `http://localhost:8101/health`
+- API:          `http://localhost:8098/`
+- Swagger UI:   `http://localhost:8098/docs`
+- Health check: `http://localhost:8098/health`
 
 4. Остановка контейнера:
 
