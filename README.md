@@ -69,8 +69,8 @@ docker run -d `
   --restart always `
   registry.provlabs.tech/hub/trial/provision_ocr:latest
 ```
-> `--gpus all` тег для запуска на GPU. Для запуска на CPU или MacOS нужно исключить данный тег
 
+> `--gpus all` тег для запуска на GPU. Для запуска на CPU или MacOS нужно исключить данный тег
 
 3. Проверьте, что контейнер запущен:
 
@@ -182,12 +182,12 @@ POST /processing2/{template}
 
 ## Шаблоны документов
 
-| Шаблон       | Описание              |
-|--------------|-----------------------|
-| `passport`   | Паспорт гражданина РФ |
-| `snils`      | СНИЛС                 |
-| `agreement`  | Договор               |
-| `default`    | Универсальный шаблон  |
+| Шаблон      | Описание              |
+|-------------|-----------------------|
+| `passport`  | Паспорт гражданина РФ |
+| `snils`     | СНИЛС                 |
+| `agreement` | Договор               |
+| `default`   | Универсальный шаблон  |
 
 ---
 
@@ -195,13 +195,16 @@ POST /processing2/{template}
 
 Сервис принимает изображения в следующих форматах:
 
-| MIME-тип              | Формат                                |
-|-----------------------|---------------------------------------|
-| `image/jpeg`          | JPEG                                  |
-| `image/png`           | PNG                                   |
-| `image/bmp`           | BMP                                   |
-| `image/tiff`          | TIFF                                  |
-| `multipart/form-data` | Поле `file` или `body` с изображением |
+| MIME-тип              | Формат                                          |
+|-----------------------|-------------------------------------------------|
+| `image/jpeg`          | JPEG                                            |
+| `image/png`           | PNG                                             |
+| `image/bmp`           | BMP                                             |
+| `image/tiff`          | TIFF                                            |
+| `image/gif`           | GIF  (static)                                   |
+| `image/webp`          | WEBP                                            |
+| `image/png`           | PDF (сервис сам определит, что пришел документ) |
+| `multipart/form-data` | Поле `file` или `body` с изображением           |
 
 ---
 
