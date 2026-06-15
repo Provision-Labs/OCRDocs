@@ -1,57 +1,60 @@
-# Provision.scan — OCR-сервис распознавания документов
+[![RU](https://img.shields.io/badge/lang-ru-red.svg)](README.ru.md)  [![EN](https://img.shields.io/badge/lang-en-green.svg)](README.md)
 
-C++ реализация сервиса OCR и распознавания документов. Полностью совместима с оригинальной Python/aiohttp версией.
+# Provision.scan — OCR Document Recognition Service
+
+C++ implementation of an OCR and document recognition service. Fully compatible with the original Python/aiohttp
+version.
 
 ---
 
-## Содержание
+## Table of Contents
 
-- [Установка и запуск](#установка-и-запуск)
+- [Installation and Launch](#installation-and-launch)
     - [Windows](#windows)
     - [Linux](#linux)
     - [Docker](#docker)
-- [Эндпоинты API](#эндпоинты-api)
+- [API Endpoints](#api-endpoints)
     - [Health](#health)
-    - [Перезагрузка моделей](#перезагрузка-моделей)
-    - [Распознавание документа (processing)](#распознавание-документа-processing)
-    - [Распознавание документа (processing2)](#распознавание-документа-processing2)
-- [Шаблоны документов](#шаблоны-документов)
-- [Форматы входных данных](#форматы-входных-данных)
-- [Формат ответа](#формат-ответа)
-- [Примеры кода](#примеры-кода)
+    - [Reload Models](#reload-models)
+    - [Document Recognition (processing)](#document-recognition-processing)
+    - [Document Recognition (processing2)](#document-recognition-processing2)
+- [Document Templates](#document-templates)
+- [Input Formats](#input-formats)
+- [Response Format](#response-format)
+- [Code Examples](#code-examples)
 
 ---
 
-## Установка и запуск
+## Installation and Launch
 
 ### Windows
 
-### `Установка`
+### `Installation`
 
-1. Скачайте [установочный файл](https://provlabs.tech/downloads/provision_ocr_trial_setup.exe)
-2. Запустите `provision_ocr_trial.exe`
-3. В открывшемся окне выберите язык, путь для установки программы
-4. Нажмите `Установить`
+1. Download the [installer](https://provlabs.tech/downloads/provision_ocr_trial_setup.exe)
+2. Run `provision_ocr_trial.exe`
+3. In the window that opens, select the language and installation path
+4. Click `Install`
 
-### `Запуск`
+### `Launch`
 
-1. В открывшемся консольном окне дождитесь статуса `Provision Scan: READY`
-2. В поле `Listening on` будет указан URL для API
-3. Из папки, в которой установлен OCR запустите файл `ProvisionOCR.exe`
+1. In the console window that opens, wait for the status `Provision Scan: READY`
+2. The `Listening on` field will show the API URL
+3. From the folder where OCR is installed, run `ProvisionOCR.exe`
 
 ### Linux
 
-`В разработке`
+`In development`
 
 ### Docker
 
-1. Скачайте docker образ:
+1. Pull the Docker image:
 
 ```bash
 docker pull registry.provlabs.tech/hub/trial/provision_ocr:latest
 ```
 
-2. Запустите контейнер:
+2. Run the container:
 
 **CMD / bash:**
 
@@ -70,21 +73,21 @@ docker run -d `
   registry.provlabs.tech/hub/trial/provision_ocr:latest
 ```
 
-> `--gpus all` тег для запуска на GPU. Для запуска на CPU или MacOS нужно исключить данный тег
+> `--gpus all` flag enables GPU usage. To run on CPU or macOS, omit this flag.
 
-3. Проверьте, что контейнер запущен:
+3. Verify the container is running:
 
 ```bash
 docker ps
 ```
 
-После успешного старта сервис доступен по адресам:
+After a successful start, the service is available at:
 
 - API:          `http://localhost:8098/`
 - Swagger UI:   `http://localhost:8098/docs`
 - Health check: `http://localhost:8098/health`
 
-4. Остановка контейнера:
+4. Stop the container:
 
 ```bash
 docker stop provision_ocr
@@ -92,7 +95,7 @@ docker stop provision_ocr
 
 ---
 
-## Эндпоинты API
+## API Endpoints
 
 ### Health
 
@@ -100,16 +103,16 @@ docker stop provision_ocr
 POST /health
 ```
 
-Проверка доступности сервиса (liveness probe).
+Service availability check (liveness probe).
 
-**Ответы:**
+**Responses:**
 
-| Код   | Описание                                         |
+| Code  | Description                                      |
 |-------|--------------------------------------------------|
-| `200` | Сервис работает нормально                        |
-| `503` | Сервис временно недоступен (middleware отключён) |
+| `200` | Service is running normally                      |
+| `503` | Service temporarily unavailable (middleware off) |
 
-**Пример ответа (200):**
+**Example response (200):**
 
 ```json
 {
@@ -119,22 +122,22 @@ POST /health
 
 ---
 
-### Перезагрузка моделей
+### Reload Models
 
 ```
 POST /reload_service
 ```
 
-Выгружает и перезагружает все ONNX-модели при следующем запросе: Mask R-CNN, CRAFT, TextRecognizer, CharRecognizer,
-EfficientNet, Edge. Полезно после замены весов на диске без перезапуска сервиса.
+Unloads and reloads all ONNX models on the next request: Mask R-CNN, CRAFT, TextRecognizer, CharRecognizer,
+EfficientNet, Edge. Useful after replacing weights on disk without restarting the service.
 
-**Ответы:**
+**Responses:**
 
-| Код   | Описание             |
-|-------|----------------------|
-| `200` | Перезагрузка принята |
+| Code  | Description     |
+|-------|-----------------|
+| `200` | Reload accepted |
 
-**Пример ответа (200):**
+**Example response (200):**
 
 ```json
 {
@@ -144,73 +147,73 @@ EfficientNet, Edge. Полезно после замены весов на ди�
 
 ---
 
-### Распознавание документа (processing)
+### Document Recognition (processing)
 
 ```
 POST /processing/{template}
 ```
 
-Основной эндпоинт распознавания. Принимает изображение как в бинарном виде, так и через multipart/form-data.
+Main recognition endpoint. Accepts images both as raw binary and via multipart/form-data.
 
-**Параметры пути:**
+**Path parameters:**
 
-| Параметр   | Тип    | Описание                                                         |
-|------------|--------|------------------------------------------------------------------|
-| `template` | string | Шаблон документа (см. [Шаблоны документов](#шаблоны-документов)) |
+| Parameter  | Type   | Description                                                       |
+|------------|--------|-------------------------------------------------------------------|
+| `template` | string | Document template (see [Document Templates](#document-templates)) |
 
-**Тело запроса:** изображение в бинарном виде или multipart с полем `body` / `file`.
+**Request body:** image as raw binary or multipart with field `body` / `file`.
 
-**Ответы:**
+**Responses:**
 
-| Код   | Описание                                                                          |
-|-------|-----------------------------------------------------------------------------------|
-| `200` | Результат распознавания                                                           |
-| `400` | Некорректный запрос (отсутствует поле file, неизвестный шаблон, ошибка пайплайна) |
-| `415` | Неподдерживаемый формат изображения                                               |
+| Code  | Description                                                        |
+|-------|--------------------------------------------------------------------|
+| `200` | Recognition result                                                 |
+| `400` | Bad request (missing file field, unknown template, pipeline error) |
+| `415` | Unsupported image format                                           |
 
 ---
 
-### Распознавание документа (processing2)
+### Document Recognition (processing2)
 
 ```
 POST /processing2/{template}
 ```
 
-**Параметры:** аналогично `/processing/{template}`.
+**Parameters:** same as `/processing/{template}`.
 
 ---
 
-## Шаблоны документов
+## Document Templates
 
-| Шаблон      | Описание              |
-|-------------|-----------------------|
-| `passport`  | Паспорт гражданина РФ |
-| `snils`     | СНИЛС                 |
-| `agreement` | Договор               |
-| `default`   | Универсальный шаблон  |
-
----
-
-## Форматы входных данных
-
-Сервис принимает изображения в следующих форматах:
-
-| MIME-тип              | Формат                                          |
-|-----------------------|-------------------------------------------------|
-| `image/jpeg`          | JPEG                                            |
-| `image/png`           | PNG                                             |
-| `image/bmp`           | BMP                                             |
-| `image/tiff`          | TIFF                                            |
-| `image/gif`           | GIF  (static)                                   |
-| `image/webp`          | WEBP                                            |
-| `image/png`           | PDF (сервис сам определит, что пришел документ) |
-| `multipart/form-data` | Поле `file` или `body` с изображением           |
+| Template    | Description                 |
+|-------------|-----------------------------|
+| `passport`  | Russian Federation passport |
+| `snils`     | SNILS (pension certificate) |
+| `agreement` | Contract / Agreement        |
+| `default`   | Universal template          |
 
 ---
 
-## Формат ответа
+## Input Formats
 
-### Структура верхнего уровня
+The service accepts images in the following formats:
+
+| MIME type             | Format                                         |
+|-----------------------|------------------------------------------------|
+| `image/jpeg`          | JPEG                                           |
+| `image/png`           | PNG                                            |
+| `image/bmp`           | BMP                                            |
+| `image/tiff`          | TIFF                                           |
+| `image/gif`           | GIF (static)                                   |
+| `image/webp`          | WEBP                                           |
+| `image/png`           | PDF (the service will detect it automatically) |
+| `multipart/form-data` | Field `file` or `body` containing the image    |
+
+---
+
+## Response Format
+
+### Top-level structure
 
 ```json
 {
@@ -225,16 +228,16 @@ POST /processing2/{template}
 }
 ```
 
-| Поле             | Тип   | Описание                        |
-|------------------|-------|---------------------------------|
-| `width`          | int   | Ширина изображения в пикселях   |
-| `height`         | int   | Высота изображения в пикселях   |
-| `schema_version` | int   | Версия формата ответа           |
-| `pages`          | array | Страницы документа (обычно 1–2) |
+| Field            | Type  | Description                  |
+|------------------|-------|------------------------------|
+| `width`          | int   | Image width in pixels        |
+| `height`         | int   | Image height in pixels       |
+| `schema_version` | int   | Response format version      |
+| `pages`          | array | Document pages (usually 1–2) |
 
 ---
 
-### Объект `Page`
+### `Page` object
 
 ```json
 {
@@ -252,24 +255,24 @@ POST /processing2/{template}
 }
 ```
 
-| Поле          | Тип    | Описание                                                                   |
-|---------------|--------|----------------------------------------------------------------------------|
-| `page_number` | int    | Номер страницы (начиная с 1)                                               |
-| `loc`         | object | Bounding box страницы в пикселях                                           |
-| `blocks`      | array  | Плоский список всех распознанных блоков на странице                        |
-| `paragraphs`  | array  | Сгруппированные блоки; для документов с шаблоном — основной источник полей |
-| `tables`      | array  | Распознанные таблицы (пусто для шаблонов паспорт/СНИЛС)                    |
-| `figures`     | array  | Обнаруженные фигуры/изображения                                            |
+| Field         | Type   | Description                                                           |
+|---------------|--------|-----------------------------------------------------------------------|
+| `page_number` | int    | Page number (starting from 1)                                         |
+| `loc`         | object | Page bounding box in pixels                                           |
+| `blocks`      | array  | Flat list of all recognized blocks on the page                        |
+| `paragraphs`  | array  | Grouped blocks; for template documents — the primary source of fields |
+| `tables`      | array  | Recognized tables (empty for passport/SNILS templates)                |
+| `figures`     | array  | Detected figures/images                                               |
 
 ---
 
-### Объект `Block`
+### `Block` object
 
-Встречается в `page.blocks`, `paragraph.blocks` и `table.cells[r][c].blocks`.
+Found in `page.blocks`, `paragraph.blocks`, and `table.cells[r][c].blocks`.
 
 ```json
 {
-  "text": "ИВАНОВ",
+  "text": "IVANOV",
   "tag": "lastName",
   "prob": 1.0,
   "loc": {
@@ -281,24 +284,24 @@ POST /processing2/{template}
 }
 ```
 
-| Поле   | Тип    | Описание                                                                         |
-|--------|--------|----------------------------------------------------------------------------------|
-| `text` | string | Распознанный текст блока                                                         |
-| `tag`  | string | Семантический тег (например, `lastName`, `dateIssued`, `word`, `header`, `data`) |
-| `prob` | float  | Уверенность распознавания (0–1)                                                  |
-| `loc`  | object | Bounding box блока: `x1`, `y1`, `x2`, `y2`                                       |
+| Field  | Type   | Description                                                             |
+|--------|--------|-------------------------------------------------------------------------|
+| `text` | string | Recognized text of the block                                            |
+| `tag`  | string | Semantic tag (e.g., `lastName`, `dateIssued`, `word`, `header`, `data`) |
+| `prob` | float  | Recognition confidence (0–1)                                            |
+| `loc`  | object | Block bounding box: `x1`, `y1`, `x2`, `y2`                              |
 
 ---
 
-### Объект `Paragraph`
+### `Paragraph` object
 
-Группирует несколько `Block`-ов в одно логическое поле. `text` — конкатенация всех блоков.
-Пустое в шаблоне `default`
+Groups multiple `Block` objects into one logical field. `text` is the concatenation of all blocks.
+Empty for the `default` template.
 
 ```json
 {
   "tag": "placeIssued",
-  "text": "УВД ГОР.ОЗЕРСКА ЧЕЛЯБИНСКОЙ ОБЛ",
+  "text": "UVD GOR.OZЕРСКА CHELYABINSK REGION",
   "prob": 1.0,
   "loc": {
     "x1": 234,
@@ -308,7 +311,7 @@ POST /processing2/{template}
   },
   "blocks": [
     {
-      "text": "УВД",
+      "text": "UVD",
       "tag": "placeIssued",
       "prob": 1.0,
       "loc": {
@@ -319,7 +322,7 @@ POST /processing2/{template}
       }
     },
     {
-      "text": "ГОР.ОЗЕРСКА",
+      "text": "GOR.OZЕРSKA",
       "tag": "placeIssued",
       "prob": 1.0,
       "loc": {
@@ -330,7 +333,7 @@ POST /processing2/{template}
       }
     },
     {
-      "text": "ЧЕЛЯБИНСКОЙ",
+      "text": "CHELYABINSK",
       "tag": "placeIssued",
       "prob": 1.0,
       "loc": {
@@ -341,7 +344,7 @@ POST /processing2/{template}
       }
     },
     {
-      "text": "ОБЛ",
+      "text": "REGION",
       "tag": "placeIssued",
       "prob": 1.0,
       "loc": {
@@ -357,9 +360,10 @@ POST /processing2/{template}
 
 ---
 
-### Объект `Table`
+### `Table` object
 
-Присутствует при обработке шаблона `default` (общие документы с таблицами). `cells` — двумерный массив строк и столбцов.
+Present when processing the `default` template (general documents with tables). `cells` is a 2D array of rows and
+columns.
 
 ```json
 {
@@ -367,7 +371,7 @@ POST /processing2/{template}
     [
       {
         "tag": "header",
-        "text": "Код",
+        "text": "Code",
         "prob": 1.0,
         "colspan": 1,
         "rowspan": 1,
@@ -379,7 +383,7 @@ POST /processing2/{template}
         },
         "blocks": [
           {
-            "text": "Код",
+            "text": "Code",
             "tag": "header",
             "prob": 1.0,
             "loc": {
@@ -424,38 +428,38 @@ POST /processing2/{template}
 }
 ```
 
-| Поле ячейки | Тип    | Описание                              |
-|-------------|--------|---------------------------------------|
-| `tag`       | string | `header` — заголовок, `data` — данные |
-| `text`      | string | Текст ячейки                          |
-| `prob`      | float  | Уверенность (0 — 1)                   |
-| `colspan`   | int    | Объединение столбцов                  |
-| `rowspan`   | int    | Объединение строк                     |
-| `loc`       | object | Bounding box ячейки                   |
-| `blocks`    | array  | Отдельные блоки внутри ячейки         |
+| Cell field | Type   | Description                              |
+|------------|--------|------------------------------------------|
+| `tag`      | string | `header` — column header, `data` — value |
+| `text`     | string | Cell text                                |
+| `prob`     | float  | Confidence (0–1)                         |
+| `colspan`  | int    | Column span                              |
+| `rowspan`  | int    | Row span                                 |
+| `loc`      | object | Cell bounding box                        |
+| `blocks`   | array  | Individual blocks inside the cell        |
 
 ---
 
-### Теги полей паспорта
+### Passport field tags
 
-| Тег                  | Описание               |
-|----------------------|------------------------|
-| `lastName`           | Фамилия                |
-| `firstName`          | Имя                    |
-| `middleName`         | Отчество               |
-| `birthday`           | Дата рождения          |
-| `birthPlace`         | Место рождения         |
-| `gender`             | Пол                    |
-| `dateIssued`         | Дата выдачи            |
-| `placeIssued`        | Кем выдан              |
-| `codeIssued`         | Код подразделения      |
-| `ru_passport_number` | Серия и номер паспорта |
+| Tag                  | Description                |
+|----------------------|----------------------------|
+| `lastName`           | Last name                  |
+| `firstName`          | First name                 |
+| `middleName`         | Middle name / Patronymic   |
+| `birthday`           | Date of birth              |
+| `birthPlace`         | Place of birth             |
+| `gender`             | Gender                     |
+| `dateIssued`         | Date of issue              |
+| `placeIssued`        | Issued by                  |
+| `codeIssued`         | Department code            |
+| `ru_passport_number` | Series and passport number |
 
 ---
 
-## Примеры кода
+## Code Examples
 
-### Python — передача изображения в бинарном виде
+### Python — sending image as raw binary
 
 ```python
 import requests
@@ -471,13 +475,13 @@ result = response.json()
 doc = result["documents"][0]
 page = doc["pages"][0]
 
-# Извлечь все поля по тегу из параграфов
+# Extract all fields by tag from paragraphs
 fields = {p["tag"]: p["text"] for p in page["paragraphs"]}
 print(fields)
-# {'birthPlace': 'ГОР.', 'codeIssued': '741-002', 'dateIssued': '16.03.2007', ...}
+# {'birthPlace': 'CITY.', 'codeIssued': '741-002', 'dateIssued': '16.03.2007', ...}
 ```
 
-### Python — передача через multipart/form-data
+### Python — sending via multipart/form-data
 
 ```python
 import requests
@@ -494,7 +498,7 @@ fields = {p["tag"]: p["text"] for p in page["paragraphs"]}
 print(fields)
 ```
 
-### Python — обход таблиц (шаблон default)
+### Python — iterating over tables (default template)
 
 ```python
 import requests
@@ -512,7 +516,7 @@ for table in page["tables"]:
         print([cell["text"] for cell in row])
 ```
 
-### Python — получить все блоки со страницы
+### Python — get all blocks from a page
 
 ```python
 import requests
@@ -529,13 +533,13 @@ for block in page["blocks"]:
     print(block["text"], block["tag"], block["prob"], block["loc"])
 ```
 
-### curl — проверка доступности
+### curl — health check
 
 ```bash
 curl -X POST http://localhost:8098/health
 ```
 
-### curl — распознавание паспорта
+### curl — passport recognition
 
 ```bash
 curl -X POST http://localhost:8098/processing/passport \
