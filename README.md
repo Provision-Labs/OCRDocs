@@ -185,12 +185,12 @@ POST /processing2/{template}
 
 ## Document Templates
 
-| Template    | Description                 |
-|-------------|-----------------------------|
-| `passport`  | Russian Federation passport |
-| `snils`     | SNILS (pension certificate) |
-| `agreement` | Contract / Agreement        |
-| `default`   | Universal template          |
+| Template    | Description                 | data               | Supported formats  |
+|-------------|-----------------------------|--------------------|--------------------|
+| `passport`  | Russian Federation passport | paragraphs         | image, scanned-pdf |
+| `snils`     | SNILS (pension certificate) | paragraphs         | image, scanned-pdf |
+| `agreement` | Contract / Agreement        | paragraphs, tables | image, scanned-pdf |
+| `default`   | Universal template          | blocks, tables     | image, pdf(all)    |
 
 ---
 
@@ -362,7 +362,7 @@ Empty for the `default` template.
 
 ### `Table` object
 
-Present when processing the `default` template (general documents with tables). `cells` is a 2D array of rows and
+Present when processing the `default` template (general documents with tables) and `agreement`. `cells` is a 2D array of rows and
 columns.
 
 ```json
