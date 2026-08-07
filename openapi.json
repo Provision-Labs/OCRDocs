@@ -1,0 +1,760 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Provision OCR",
+    "description": "C++ OCR / document recognition service. Bit-for-bit compatible with the original Python aiohttp service.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "current host"
+    }
+  ],
+  "tags": [
+    {
+      "name": "recognition",
+      "description": "Document recognition endpoints"
+    },
+    {
+      "name": "service",
+      "description": "Service lifecycle / health"
+    },
+    {
+      "name": "license",
+      "description": "License snapshot and online activation"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "post": {
+        "tags": [
+          "service"
+        ],
+        "summary": "Liveness probe",
+        "description": "Returns 200 when the server is up. When the service middleware is disabled, responds 503.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/license/status": {
+      "get": {
+        "tags": [
+          "license"
+        ],
+        "summary": "License snapshot",
+        "description": "Read-only state of the local license subsystem. Excluded from the license gate so dashboards can poll even on a broken / expired license. Does NOT include machine-identifying or signing-key material. Specific deny reasons (fingerprint mismatch, request-limit reached, tampered counter, etc.) surface in the per-request 403 body, not here.",
+        "responses": {
+          "200": {
+            "description": "Current license snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LicenseStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/license/activate": {
+      "post": {
+        "tags": [
+          "license"
+        ],
+        "summary": "Online activation",
+        "description": "Submits an activation code to the License Server, persists the returned signed `.lic` and re-initialises the license subsystem — no restart needed. Idempotent for the same machine + code (the server returns the cached `.lic` without consuming a new slot). Excluded from the license gate so a locked (unlicensed / expired) server can still be activated. Restricted by IP — callers not in the configured `reload_allow` list receive 403. The License Server round-trip may take up to 15 s.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "activationCode"
+                ],
+                "properties": {
+                  "activationCode": {
+                    "type": "string",
+                    "description": "Activation code issued for this license"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Activated — license snapshot with `activated: true`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`activationCode` field missing or empty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller IP is not in the reload_allow list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "License subsystem disabled at compile time (PROVISION_NO_LICENSE build)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Activation failed — wrong / revoked code, no free slot, or License Server unreachable; `detail` carries the reason",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivateResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reload_service": {
+      "post": {
+        "tags": [
+          "service"
+        ],
+        "summary": "Reload model weights and template configs",
+        "description": "Drops all loaded TorchScript sessions (Mask R-CNN, CRAFT, TextRecognizer, CharRecognizer, EfficientNet, Edge) and re-reads the per-template JSON configs. Sessions are lazily re-instantiated on the next request. Restricted by IP — callers not in the configured `reload_allow` list receive 403.",
+        "responses": {
+          "200": {
+            "description": "Reload accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller IP is not in the reload_allow list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processing/{template}": {
+      "post": {
+        "tags": [
+          "recognition"
+        ],
+        "summary": "Recognize a document with the given template",
+        "description": "Accepts a raw image body (JPEG/PNG/BMP/TIFF/WebP/GIF), a PDF, or a multipart upload (`file` or `body` field). PDFs are split into pages and processed page-by-page; multi-page output is merged into a single `pages` array.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TemplateName"
+          },
+          {
+            "$ref": "#/components/parameters/LanguageParam"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ImageOrMultipart"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DocumentOK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "503": {
+            "$ref": "#/components/responses/QueueOverloaded"
+          }
+        }
+      }
+    },
+    "/processing2/{template}": {
+      "post": {
+        "tags": [
+          "recognition"
+        ],
+        "summary": "Recognize document (alias of /processing)",
+        "description": "Same handler and accepted media types as POST /processing/{template}. Kept for backwards compatibility with legacy clients that used the `/processing2` path.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TemplateName"
+          },
+          {
+            "$ref": "#/components/parameters/LanguageParam"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ImageOrMultipart"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DocumentOK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "503": {
+            "$ref": "#/components/responses/QueueOverloaded"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "TemplateName": {
+        "name": "template",
+        "in": "path",
+        "required": true,
+        "description": "Document template name",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "passport",
+            "snils",
+            "agreement",
+            "regulation",
+            "default"
+          ]
+        }
+      },
+      "LanguageParam": {
+        "name": "language",
+        "in": "query",
+        "required": false,
+        "description": "Recognizer selection, comma-separated array (the parameter may also repeat). Default [rus,eng] — printed text with the automatic Cyrillic/Latin script router. [rus] — everything with the Russian recognizer; [eng] — everything with the English recognizer; [literal_rus] — HANDWRITTEN Russian (mask-based word detection + handwriting CRNN; table extraction disabled). Any other combination (e.g. [literal_rus,eng]) currently also runs the handwritten-Russian path. Unknown values → 400.",
+        "style": "form",
+        "explode": false,
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "rus",
+              "eng",
+              "literal_rus"
+            ]
+          }
+        },
+        "example": [
+          "literal_rus"
+        ]
+      }
+    },
+    "requestBodies": {
+      "ImageOrMultipart": {
+        "required": true,
+        "description": "Image or PDF as raw body, or a multipart form with `file` / `body` part.",
+        "content": {
+          "image/jpeg": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "image/png": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "image/bmp": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "image/tiff": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "image/webp": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "image/gif": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "application/pdf": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "multipart/form-data": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "file": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "DocumentOK": {
+        "description": "Recognition result",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "documents"
+              ],
+              "properties": {
+                "documents": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Document"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Bad input (file field missing, unknown template, pipeline failure)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "Image payload could not be decoded",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "QueueOverloaded": {
+        "description": "GPU inference queue is saturated. Retry per `Retry-After`.",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds the client should wait before retrying.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Status": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ActivateResult": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/LicenseStatus"
+          },
+          {
+            "type": "object",
+            "required": [
+              "activated",
+              "detail"
+            ],
+            "properties": {
+              "activated": {
+                "type": "boolean",
+                "description": "Whether activation succeeded and the new .lic is live."
+              },
+              "detail": {
+                "type": "string",
+                "description": "Human-readable outcome (mode resolved, or the failure reason)."
+              }
+            }
+          }
+        ]
+      },
+      "LicenseStatus": {
+        "type": "object",
+        "description": "Sanitised license snapshot — fields are limited to what an ops dashboard needs (countdown, quota, plan). No machine-identifying or cryptographic material.",
+        "required": [
+          "mode",
+          "status",
+          "used",
+          "limit",
+          "windowResetsAt",
+          "expiresAt",
+          "product",
+          "tariff"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "trial",
+              "online",
+              "offline",
+              "none"
+            ],
+            "description": "Active resolution outcome. 'none' covers uninitialised / unknown / Token-stub."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "valid",
+              "expired",
+              "none"
+            ],
+            "description": "Whether requests would currently be accepted. 'expired' calls out the most common renewal trigger; other deny reasons (limit reached, fingerprint mismatch, counter tampered) collapse to 'none' and surface only in per-request 403 bodies."
+          },
+          "used": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Requests served against the active counter in the CURRENT 30-day window (resets every 30 days from the activation timestamp — see windowResetsAt)."
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Configured request limit FOR THE 30-DAY WINDOW. -1 = no quota (a valid license is loaded with limits.requestLimit absent). 0 = no license at all. Positive integer = per-30-day budget."
+          },
+          "windowResetsAt": {
+            "type": "string",
+            "description": "RFC 3339 UTC instant when the current 30-day counter window expires and `used` will reset to 0. Empty when limit is 0 (no license) or -1 (unlimited — no window enforcement)."
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "RFC 3339 UTC instant the license itself expires. Empty when there's no .lic loaded."
+          },
+          "product": {
+            "type": "string",
+            "description": "Product line the .lic is bound to (e.g. 'OCR'). Empty when no .lic."
+          },
+          "tariff": {
+            "type": "string",
+            "description": "Plan tier from the .lic (e.g. 'BUSINESS'). Empty when no .lic."
+          }
+        }
+      },
+      "Loc": {
+        "type": "object",
+        "description": "Axis-aligned bounding box in pixels of the page rendering.",
+        "required": [
+          "x1",
+          "y1",
+          "x2",
+          "y2"
+        ],
+        "properties": {
+          "x1": {
+            "type": "integer"
+          },
+          "y1": {
+            "type": "integer"
+          },
+          "x2": {
+            "type": "integer"
+          },
+          "y2": {
+            "type": "integer"
+          }
+        }
+      },
+      "Block": {
+        "type": "object",
+        "description": "One recognized text region (a word, a tagged field, or a table cell sub-block).",
+        "required": [
+          "text",
+          "tag",
+          "loc",
+          "prob"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Recognized UTF-8 text."
+          },
+          "tag": {
+            "type": "string",
+            "description": "Field/cell tag. `word` for untagged words, or a template-specific name (e.g. `lastName`, `birthday`, `snils_number`)."
+          },
+          "loc": {
+            "$ref": "#/components/schemas/Loc"
+          },
+          "prob": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "Paragraph": {
+        "type": "object",
+        "description": "A line-level grouping of words. Emitted only for `passport` and `snils` templates — `default`, `agreement`, and `regulation` omit this key.",
+        "required": [
+          "text",
+          "tag",
+          "loc",
+          "prob",
+          "blocks"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "loc": {
+            "$ref": "#/components/schemas/Loc"
+          },
+          "prob": {
+            "type": "number",
+            "format": "float"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Block"
+            }
+          }
+        }
+      },
+      "TableCell": {
+        "type": "object",
+        "required": [
+          "loc",
+          "colspan",
+          "rowspan",
+          "text",
+          "blocks",
+          "prob",
+          "tag"
+        ],
+        "properties": {
+          "loc": {
+            "$ref": "#/components/schemas/Loc"
+          },
+          "colspan": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "rowspan": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "text": {
+            "type": "string"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Block"
+            }
+          },
+          "prob": {
+            "type": "number",
+            "format": "float"
+          },
+          "tag": {
+            "type": "string"
+          }
+        }
+      },
+      "Table": {
+        "type": "object",
+        "required": [
+          "table_number",
+          "loc",
+          "cells"
+        ],
+        "properties": {
+          "table_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "loc": {
+            "$ref": "#/components/schemas/Loc"
+          },
+          "cells": {
+            "type": "array",
+            "description": "Row-major matrix: outer array = rows, inner array = cells of that row.",
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/TableCell"
+              }
+            }
+          }
+        }
+      },
+      "Page": {
+        "type": "object",
+        "required": [
+          "page_number",
+          "loc",
+          "blocks",
+          "tables",
+          "figures"
+        ],
+        "properties": {
+          "page_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "loc": {
+            "$ref": "#/components/schemas/Loc"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Block"
+            }
+          },
+          "paragraphs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Paragraph"
+            },
+            "description": "Present only for `passport` / `snils` templates."
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Table"
+            }
+          },
+          "figures": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Reserved for future use; currently always emitted as []."
+          }
+        }
+      },
+      "Document": {
+        "type": "object",
+        "description": "Recognition result for one input. PDFs produce one entry whose `pages` array spans every page; image inputs produce one entry with a single `pages[0]`.",
+        "required": [
+          "width",
+          "height",
+          "schema_version",
+          "pages"
+        ],
+        "properties": {
+          "width": {
+            "type": "integer",
+            "description": "Width of the original input in pixels (or PDF points)."
+          },
+          "height": {
+            "type": "integer"
+          },
+          "schema_version": {
+            "type": "number",
+            "example": 1
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Page"
+            }
+          }
+        }
+      }
+    }
+  }
+}
