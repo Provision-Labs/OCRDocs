@@ -1,0 +1,94 @@
+name: Сообщение об ошибке
+description: Сообщить об ошибке можно здесь
+title: "[BUG]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Благодарим за уделенное время и сообщение об ошибке!
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Описание ошибки
+      description: Расскажите об ошибке, с которой вы столкнулись
+    validations:
+      required: true
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Шаги для воспроизведения
+      description: Шаги для воспроизведения ошибки
+      placeholder: Пожалуйста, опишите шаги в виде списка
+    validations:
+      required: true
+  - type: textarea
+    id: expected-result
+    attributes:
+      label: Ожидаемый результат
+      description: Какой текст должен был распознать OCR?
+    validations:
+      required: true
+  - type: textarea
+    id: actual-result
+    attributes:
+      label: Фактический результат
+      description: Какой текст фактически вернул OCR?
+    validations:
+      required: true
+  - type: textarea
+    id: image-attachment
+    attributes:
+      label: Изображение
+      description: Прикрепите изображение, на котором воспроизводится ошибка (перетащите файл или вставьте ссылку)
+    validations:
+      required: false
+  - type: dropdown
+    id: image-language
+    attributes:
+      label: Язык текста на изображении
+      description: Какой язык распознавался?
+      multiple: true
+      options:
+        - Русский
+        - Английский
+        - Смешанный (RU + EN)
+    validations:
+      required: true
+  - type: dropdown
+    id: image-format
+    attributes:
+      label: Формат файла
+      options:
+        - PNG
+        - JPEG
+        - TIFF
+        - PDF
+        - BMP
+        - Другой
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Операционная система
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: dropdown
+    id: versions
+    attributes:
+      label: Какую версию приложения вы использовали?
+      description: Если проблема возникает на нескольких версиях, выберите их
+      multiple: true
+      options:
+        # AUTO-VERSIONS-START (обновляется автоматически из GitHub Releases, не редактировать вручную)
+        - 0.9.1
+        # AUTO-VERSIONS-END
+    validations:
+      required: true
+
+

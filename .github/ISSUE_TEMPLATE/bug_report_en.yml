@@ -1,0 +1,92 @@
+name: Bug Report
+description: Report a bug here
+title: "[BUG]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a bug!
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Bug Description
+      description: Describe the bug you encountered
+    validations:
+      required: true
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the bug
+      placeholder: Please describe the steps as a list
+    validations:
+      required: true
+  - type: textarea
+    id: expected-result
+    attributes:
+      label: Expected Result
+      description: What text should the OCR have recognized?
+    validations:
+      required: true
+  - type: textarea
+    id: actual-result
+    attributes:
+      label: Actual Result
+      description: What text did the OCR actually return?
+    validations:
+      required: true
+  - type: textarea
+    id: image-attachment
+    attributes:
+      label: Image
+      description: Attach the image where the bug occurs (drag & drop or paste a link)
+    validations:
+      required: false
+  - type: dropdown
+    id: image-language
+    attributes:
+      label: Language of Text in Image
+      description: What language was being recognized?
+      multiple: true
+      options:
+        - Russian
+        - English
+        - Mixed (RU + EN)
+    validations:
+      required: true
+  - type: dropdown
+    id: image-format
+    attributes:
+      label: File Format
+      options:
+        - PNG
+        - JPEG
+        - TIFF
+        - PDF
+        - BMP
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: dropdown
+    id: versions
+    attributes:
+      label: Which version of the application did you use?
+      description: If the issue occurs on multiple versions, select all that apply
+      multiple: true
+      options:
+        # AUTO-VERSIONS-START (updated automatically from GitHub Releases, do not edit by hand)
+        - 0.9.1
+        # AUTO-VERSIONS-END
+    validations:
+      required: true
