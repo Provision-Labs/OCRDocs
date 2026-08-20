@@ -65,6 +65,8 @@ body:
         - TIFF
         - PDF
         - BMP
+        - GIF (static)
+        - WEBP
         - Другой
     validations:
       required: true
