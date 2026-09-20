@@ -50,7 +50,7 @@ C++ реализация сервиса OCR и распознавания док
 1. Скачайте docker образ:
 
 ```bash
-docker pull registry.provlabs.tech/hub/trial/provision_ocr:latest
+docker pull registry.provlabs.tech/hub/provision_ocr:latest
 ```
 
 2. Запустите контейнер:
@@ -58,7 +58,7 @@ docker pull registry.provlabs.tech/hub/trial/provision_ocr:latest
 **CMD / bash:**
 
 ```bash
-docker run -d --name provision_ocr --gpus all -p 8098:8098 --restart always registry.provlabs.tech/hub/trial/provision_ocr:latest
+docker run -d --name provision_ocr --gpus all -p 8098:8098 --restart always registry.provlabs.tech/hub/provision_ocr:latest
 ```
 
 **PowerShell:**
@@ -69,7 +69,7 @@ docker run -d `
   --gpus all `
   -p 8098:8098 `
   --restart always `
-  registry.provlabs.tech/hub/trial/provision_ocr:latest
+  registry.provlabs.tech/hub/provision_ocr:latest
 ```
 
 > `--gpus all` тег для запуска на GPU. Для запуска на CPU или MacOS нужно исключить данный тег

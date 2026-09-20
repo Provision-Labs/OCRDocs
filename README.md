@@ -51,7 +51,7 @@ version.
 1. Pull the Docker image:
 
 ```bash
-docker pull registry.provlabs.tech/hub/trial/provision_ocr:latest
+docker pull registry.provlabs.tech/hub/provision_ocr:latest
 ```
 
 2. Run the container:
@@ -59,7 +59,7 @@ docker pull registry.provlabs.tech/hub/trial/provision_ocr:latest
 **CMD / bash:**
 
 ```bash
-docker run -d --name provision_ocr --gpus all -p 8098:8098 --restart always registry.provlabs.tech/hub/trial/provision_ocr:latest
+docker run -d --name provision_ocr --gpus all -p 8098:8098 --restart always registry.provlabs.tech/hub/provision_ocr:latest
 ```
 
 **PowerShell:**
@@ -70,7 +70,7 @@ docker run -d `
   --gpus all `
   -p 8098:8098 `
   --restart always `
-  registry.provlabs.tech/hub/trial/provision_ocr:latest
+  registry.provlabs.tech/hub/provision_ocr:latest
 ```
 
 > `--gpus all` flag enables GPU usage. To run on CPU or macOS, omit this flag.
