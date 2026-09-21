@@ -30,7 +30,7 @@ C++ реализация сервиса OCR и распознавания док
 
 ### `Установка`
 
-1. Скачайте [установочный файл](https://provlabs.tech/downloads/provision_ocr_trial_setup.exe)
+1. Скачайте [установочный файл](https://provlabs.tech/downloads/provision_ocr_setup.exe)
 2. Запустите `provision_ocr_trial.exe`
 3. В открывшемся окне выберите язык, путь для установки программы
 4. Нажмите `Установить`

@@ -31,7 +31,7 @@ version.
 
 ### `Installation`
 
-1. Download the [installer](https://provlabs.tech/downloads/provision_ocr_trial_setup.exe)
+1. Download the [installer](https://provlabs.tech/downloads/provision_ocr_setup.exe)
 2. Run `provision_ocr_trial.exe`
 3. In the window that opens, select the language and installation path
 4. Click `Install`
