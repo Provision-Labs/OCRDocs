@@ -88,6 +88,7 @@ body:
       multiple: true
       options:
         # AUTO-VERSIONS-START (updated automatically from GitHub Releases, do not edit by hand)
+        - 0.9.3
         - 0.9.1
         # AUTO-VERSIONS-END
     validations:
