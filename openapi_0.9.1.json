@@ -3,7 +3,7 @@
   "info": {
     "title": "Provision OCR",
     "description": "C++ OCR / document recognition service. Bit-for-bit compatible with the original Python aiohttp service.",
-    "version": "1.0.0"
+    "version": "0.9.1"
   },
   "servers": [
     {

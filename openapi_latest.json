@@ -1,0 +1,890 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Provision OCR",
+    "description": "C++ OCR / document recognition service. Bit-for-bit compatible with the original Python aiohttp service.",
+    "version": "0.9.3"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "current host"
+    }
+  ],
+  "tags": [
+    {
+      "name": "recognition",
+      "description": "Document recognition endpoints"
+    },
+    {
+      "name": "service",
+      "description": "Service lifecycle / health"
+    },
+    {
+      "name": "license",
+      "description": "License snapshot and online activation"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "post": {
+        "tags": [
+          "service"
+        ],
+        "summary": "Liveness probe",
+        "description": "Returns 200 when the server is up. When the service middleware is disabled, responds 503.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/license/status": {
+      "get": {
+        "tags": [
+          "license"
+        ],
+        "summary": "License snapshot",
+        "description": "Read-only state of the local license subsystem. Excluded from the license gate so dashboards can poll even on a broken / expired license. Does NOT include machine-identifying or signing-key material. Specific deny reasons (fingerprint mismatch, request-limit reached, tampered counter, etc.) surface in the per-request 403 body, not here.",
+        "responses": {
+          "200": {
+            "description": "Current license snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LicenseStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/license/activate": {
+      "post": {
+        "tags": [
+          "license"
+        ],
+        "summary": "Online activation",
+        "description": "Submits an activation code to the License Server, persists the returned signed `.lic` and re-initialises the license subsystem — no restart needed. Idempotent for the same machine + code (the server returns the cached `.lic` without consuming a new slot). Excluded from the license gate so a locked (unlicensed / expired) server can still be activated. Restricted by the admin allowlist — callers not matching `reload_allow` receive 403. The License Server round-trip may take up to 15 s and only one activation runs at a time: a second call while one is in progress receives 409.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "activationCode"
+                ],
+                "properties": {
+                  "activationCode": {
+                    "type": "string",
+                    "description": "Activation code issued for this license"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Activated — license snapshot with `activated: true`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`activationCode` field missing or empty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller IP is not in the reload_allow list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another activation is already in progress on this server — retry after it finishes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "License subsystem disabled at compile time (PROVISION_NO_LICENSE build)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Activation failed — wrong / revoked code, no free slot, or License Server unreachable; `detail` carries the reason",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivateResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reload_service": {
+      "post": {
+        "tags": [
+          "service"
+        ],
+        "summary": "Reload model weights and template configs",
+        "description": "Re-reads provision_ocr.ini (the `[weights]` per-model path overrides and text_*_img_w input widths), drops all loaded TorchScript sessions (Mask R-CNN, CRAFT, TextRecognizer, CharRecognizer, EfficientNet, Edge) and re-reads the per-template JSON configs. Sessions are lazily re-instantiated on the next request with the refreshed paths, so the weights_run sidecar can switch models without a process restart. The ini is parsed and validated as a whole BEFORE anything is applied: a value that does not parse answers 400 naming the key and leaves the running configuration untouched. The reload waits for in-flight inference jobs to drain, so the response can take a few seconds; only one reload runs at a time (409 otherwise). Restricted by the admin allowlist — callers not matching `reload_allow` receive 403.",
+        "responses": {
+          "200": {
+            "description": "Reload done — sessions dropped, models are re-created on the next request. `config_reloaded` is false when the process was started without a config directory (tests / embedders).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "provision_ocr.ini did not validate — a numeric value does not parse; `message` names the key, the value and the file:line. The running configuration is unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller IP is not in the reload_allow list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A reload is already in progress — retry after it finishes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Reload failed after validation (weights directory unreadable, model sessions could not be dropped); `message` carries the reason, the server log the exception type.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processing/{template}": {
+      "post": {
+        "tags": [
+          "recognition"
+        ],
+        "summary": "Recognize a document with the given template",
+        "description": "Accepts a raw image body (JPEG/PNG/BMP/TIFF/WebP/GIF), a PDF, or a multipart upload (`file` or `body` field). PDFs are split into pages and processed page-by-page; multi-page output is merged into a single `pages` array. For PDFs an optional pagesFrom/pagesTo range limits processing to a page window; the response then carries pagesFrom/pagesTo/maxPages document-level metadata.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TemplateName"
+          },
+          {
+            "$ref": "#/components/parameters/LanguageParam"
+          },
+          {
+            "$ref": "#/components/parameters/PagesFrom"
+          },
+          {
+            "$ref": "#/components/parameters/PagesTo"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ImageOrMultipart"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DocumentOK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/QueueOverloaded"
+          }
+        }
+      }
+    },
+    "/processing2/{template}": {
+      "post": {
+        "tags": [
+          "recognition"
+        ],
+        "summary": "Recognize document (alias of /processing)",
+        "description": "Same handler and accepted media types as POST /processing/{template}. Kept for backwards compatibility with legacy clients that used the `/processing2` path. For PDFs an optional pagesFrom/pagesTo range limits processing to a page window; the response then carries pagesFrom/pagesTo/maxPages document-level metadata.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TemplateName"
+          },
+          {
+            "$ref": "#/components/parameters/LanguageParam"
+          },
+          {
+            "$ref": "#/components/parameters/PagesFrom"
+          },
+          {
+            "$ref": "#/components/parameters/PagesTo"
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ImageOrMultipart"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DocumentOK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/QueueOverloaded"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "TemplateName": {
+        "name": "template",
+        "in": "path",
+        "required": true,
+        "description": "Document template name",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "passport",
+            "snils",
+            "agreement",
+            "regulation",
+            "default"
+          ]
+        }
+      },
+      "LanguageParam": {
+        "name": "language",
+        "in": "query",
+        "required": false,
+        "description": "Recognizer selection, comma-separated array (the parameter may also repeat). Default (no parameter, or [rus,eng]) — printed text, every character of both scripts (Cyrillic and Latin) with the automatic script router, no filter. [rus] — everything with the Russian recognizer. [eng] — everything with the Latin recognizer, the output limited to digits, punctuation, symbols and ASCII letters: a letter outside that set is not transliterated but replaced by the most probable allowed one (café → cafe). [rus,eng] — the same as the default: both scripts, no filter. [literal_rus] — HANDWRITTEN Russian (mask-based word detection + handwriting CRNN; table extraction disabled); any combination with literal_rus currently also runs the handwritten-Russian path. Unknown values → 400.",
+        "style": "form",
+        "explode": false,
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "rus",
+              "literal_rus",
+              "eng"
+            ]
+          }
+        },
+        "example": [
+          "literal_rus"
+        ]
+      },
+      "PagesFrom": {
+        "name": "pagesFrom",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "description": "PDF only: first page to process, 0-based inclusive. Ignored for images."
+      },
+      "PagesTo": {
+        "name": "pagesTo",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "description": "PDF only: end of the page range, EXCLUSIVE (pagesFrom=0&pagesTo=3 = first three pages). Default: through the last page. Must be >= pagesFrom (else 400). A range outside the document yields a valid response with zero pages. The PDF response document echoes pagesFrom/pagesTo and reports the real page count in maxPages; page_number values are the ORIGINAL document positions (1-based), not renumbered."
+      }
+    },
+    "requestBodies": {
+      "ImageOrMultipart": {
+        "required": true,
+        "description": "Image or PDF as raw body, or a multipart form with `file` / `body` part.",
+        "content": {
+          "image/jpeg": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "image/png": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "image/bmp": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "image/tiff": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "image/webp": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "image/gif": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "application/pdf": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "multipart/form-data": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "file": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "DocumentOK": {
+        "description": "Recognition result",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "documents"
+              ],
+              "properties": {
+                "documents": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Document"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Bad input: file field missing, unknown template, invalid `language` / `pagesFrom` / `pagesTo`, unreadable or encrypted PDF. `message` says which; for a PDF it is prefixed `page N:` when the error came from a page (every selected page failed the same way). A page window outside the document is not an error: 200 with an empty `pages` and the real `maxPages`.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "Image payload could not be decoded",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Server-side failure while processing — a model that is not loaded (missing weights after a reload, input width mismatch), a CUDA error, a template config that does not parse. `message` carries the reason (`internal error: ...`); the server log has the full text and the exception type at error level. This is never the client's data: retrying with a different file does not help. For PDFs this is returned when every selected page failed (`page N: internal error: ...`); if only some pages failed the response is 200 with those pages absent (detectable through `page_number` gaps against pagesFrom/pagesTo) and one error line per page in the log.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "QueueOverloaded": {
+        "description": "GPU inference queue is saturated. Retry per `Retry-After`.",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds the client should wait before retrying.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Status": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          }
+        }
+      },
+      "HealthStatus": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "example": "ok" },
+          "version": {
+            "type": "string",
+            "example": "0.9.3",
+            "description": "Product version of the running build, from the VERSION file at compile time. Independent of `info.version`, which is the version of THIS contract. Reads \"unknown\" only if the build was made without the version define."
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ActivateResult": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/LicenseStatus"
+          },
+          {
+            "type": "object",
+            "required": [
+              "activated",
+              "detail"
+            ],
+            "properties": {
+              "activated": {
+                "type": "boolean",
+                "description": "Whether activation succeeded and the new .lic is live."
+              },
+              "detail": {
+                "type": "string",
+                "description": "Human-readable outcome (mode resolved, or the failure reason)."
+              }
+            }
+          }
+        ]
+      },
+      "LicenseStatus": {
+        "type": "object",
+        "description": "Sanitised license snapshot — fields are limited to what an ops dashboard needs (countdown, quota, plan). No machine-identifying or cryptographic material.",
+        "required": [
+          "mode",
+          "status",
+          "used",
+          "limit",
+          "windowResetsAt",
+          "expiresAt",
+          "product",
+          "tariff"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "trial",
+              "online",
+              "offline",
+              "none"
+            ],
+            "description": "Active resolution outcome. 'none' covers uninitialised / unknown / Token-stub."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "valid",
+              "expired",
+              "none"
+            ],
+            "description": "Whether requests would currently be accepted. 'expired' calls out the most common renewal trigger; other deny reasons (limit reached, fingerprint mismatch, counter tampered) collapse to 'none' and surface only in per-request 403 bodies."
+          },
+          "used": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Requests served against the active counter in the CURRENT 30-day window (resets every 30 days from the activation timestamp — see windowResetsAt)."
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Configured request limit FOR THE 30-DAY WINDOW. -1 = no quota (a valid license is loaded with limits.requestLimit absent). 0 = no license at all. Positive integer = per-30-day budget."
+          },
+          "windowResetsAt": {
+            "type": "string",
+            "description": "RFC 3339 UTC instant when the current 30-day counter window expires and `used` will reset to 0. Empty when limit is 0 (no license) or -1 (unlimited — no window enforcement)."
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "RFC 3339 UTC instant the license itself expires. Empty when there's no .lic loaded."
+          },
+          "product": {
+            "type": "string",
+            "description": "Product line the .lic is bound to (e.g. 'OCR'). Empty when no .lic."
+          },
+          "tariff": {
+            "type": "string",
+            "description": "Plan tier from the .lic (e.g. 'BUSINESS'). Empty when no .lic."
+          }
+        }
+      },
+      "Loc": {
+        "type": "object",
+        "description": "Axis-aligned bounding box in pixels of the page rendering.",
+        "required": [
+          "x1",
+          "y1",
+          "x2",
+          "y2"
+        ],
+        "properties": {
+          "x1": {
+            "type": "integer"
+          },
+          "y1": {
+            "type": "integer"
+          },
+          "x2": {
+            "type": "integer"
+          },
+          "y2": {
+            "type": "integer"
+          }
+        }
+      },
+      "Block": {
+        "type": "object",
+        "description": "One recognized text region (a word, a tagged field, or a table cell sub-block).",
+        "required": [
+          "text",
+          "tag",
+          "loc",
+          "prob"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Recognized UTF-8 text."
+          },
+          "tag": {
+            "type": "string",
+            "description": "Field/cell tag. `word` for untagged words, or a template-specific name (e.g. `lastName`, `birthday`, `snils_number`)."
+          },
+          "loc": {
+            "$ref": "#/components/schemas/Loc"
+          },
+          "prob": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Recognition confidence: per-character-normalized CTC forward probability of `text` given the crop."
+          },
+          "det_prob": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Detection confidence of the box itself (peak CRAFT region score; for stitched numbers, the weakest merged fragment). Orthogonal to `prob`: a high `prob` with a low `det_prob` means a confidently recognized but dubious region. Omitted when the box did not come from the CRAFT detector (mask-derived fields, handwriting)."
+          }
+        }
+      },
+      "Paragraph": {
+        "type": "object",
+        "description": "A line-level grouping of words. Emitted only for `passport` and `snils` templates — `default`, `agreement`, and `regulation` omit this key.",
+        "required": [
+          "text",
+          "tag",
+          "loc",
+          "prob",
+          "blocks"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "loc": {
+            "$ref": "#/components/schemas/Loc"
+          },
+          "prob": {
+            "type": "number",
+            "format": "float"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Block"
+            }
+          }
+        }
+      },
+      "TableCell": {
+        "type": "object",
+        "required": [
+          "loc",
+          "colspan",
+          "rowspan",
+          "text",
+          "blocks",
+          "prob",
+          "tag"
+        ],
+        "properties": {
+          "loc": {
+            "$ref": "#/components/schemas/Loc"
+          },
+          "colspan": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "rowspan": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "text": {
+            "type": "string"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Block"
+            }
+          },
+          "prob": {
+            "type": "number",
+            "format": "float"
+          },
+          "tag": {
+            "type": "string"
+          }
+        }
+      },
+      "Table": {
+        "type": "object",
+        "required": [
+          "table_number",
+          "loc",
+          "cells"
+        ],
+        "properties": {
+          "table_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "loc": {
+            "$ref": "#/components/schemas/Loc"
+          },
+          "cells": {
+            "type": "array",
+            "description": "Row-major matrix: outer array = rows, inner array = cells of that row.",
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/TableCell"
+              }
+            }
+          }
+        }
+      },
+      "Page": {
+        "type": "object",
+        "required": [
+          "page_number",
+          "loc",
+          "blocks",
+          "tables",
+          "figures"
+        ],
+        "properties": {
+          "page_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "rotation": {
+            "type": "number",
+            "minimum": -180,
+            "exclusiveMinimum": true,
+            "maximum": 180,
+            "description": "Clockwise angle, in degrees, the page as delivered (the displayed PDF page, i.e. with the document's /Rotate applied) must be turned so its text reads upright: 0 = already upright, 90 = a quarter turn clockwise, 180 = upside down, -90 = a quarter turn counter-clockwise. Present on every page read from the PDF text layer (0 included), which only ever reports 0, 90, 180 or -90. On OCR'd pages (images and rendered PDF pages) it is present when the page-geometry net analysed the page and was sure of its orientation: the server turned the page by this angle before recognition: the quarter turn (0 = analysed, already upright, 90, 180, -90) plus, when the server's skew straightening is enabled (`page_deskew` in provision_ocr.ini, on by default), the residual skew it also straightened, e.g. -7.43 (two decimals; a skew below `page_deskew_min_deg`, 4 degrees by default, is left alone and the value stays the quarter alone; by default the skew is the angle of the text lines found on the page and is applied only when they confirm the net within `page_deskew_text_agree_deg`, 5 degrees). Absent when the net is disabled, its weights are missing, the template opts out (`recognition.page_geometry: false`) or the net was not sure enough to act — absence is not 0, the page was then processed as delivered. Every `loc` in the page — page, blocks, paragraphs, tables, cells — stays in the delivered frame regardless of this value, and `width`/`height` are the delivered size. A turned page is read upright, so `blocks` come in reading order and table `cells` are the logical rows and columns: with rotation 90 a table row shows up as a vertical strip of cell `loc`s. On a straightened page every `loc` is the axis-aligned bounds, in the delivered frame, of the box as it lies on the tilted page, so word boxes grow with the tilt; the value is what the server actually applied, not the angle it measured."
+          },
+          "loc": {
+            "$ref": "#/components/schemas/Loc"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Block"
+            }
+          },
+          "paragraphs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Paragraph"
+            },
+            "description": "Present only for `passport` / `snils` templates."
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Table"
+            }
+          },
+          "figures": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Reserved for future use; currently always emitted as []."
+          }
+        }
+      },
+      "Document": {
+        "type": "object",
+        "description": "Recognition result for one input. PDFs produce one entry whose `pages` array spans every page; image inputs produce one entry with a single `pages[0]`. PDF responses additionally carry pagesFrom/pagesTo/maxPages page-range metadata (absent for image inputs).",
+        "required": [
+          "width",
+          "height",
+          "schema_version",
+          "pages"
+        ],
+        "properties": {
+          "width": {
+            "type": "integer",
+            "description": "Width of the original input in pixels (or PDF points)."
+          },
+          "height": {
+            "type": "integer"
+          },
+          "schema_version": {
+            "type": "number",
+            "example": 1.0
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Page"
+            }
+          },
+          "pagesFrom": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "PDF only: requested start of the page range (0-based, inclusive), echoed from the pagesFrom query param; 0 when the param was absent."
+          },
+          "pagesTo": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "PDF only: end of the page range (exclusive). Echoes the pagesTo query param; when the param was absent, the effective bound (= total page count)."
+          },
+          "maxPages": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "PDF only: the document's REAL total page count, regardless of the requested range — lets clients paginate without a probe request."
+          }
+        }
+      }
+    }
+  }
+}
